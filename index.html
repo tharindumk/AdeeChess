@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gothic Cathedral 3D Chess - Hyper-Realistic Edition</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: MedievalSharp & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- chess.js for move validation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #030205;
+            color: #e2e8f0;
+            user-select: none;
+        }
+
+        .font-gothic {
+            font-family: 'MedievalSharp', cursive, serif;
+        }
+
+        /* Gothic Glassmorphism Panel Styling */
+        .gothic-panel {
+            background: linear-gradient(135deg, rgba(18, 14, 26, 0.85) 0%, rgba(8, 6, 12, 0.92) 100%);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85), inset 0 0 20px rgba(212, 175, 55, 0.08);
+        }
+
+        .gothic-border-glow {
+            border: 1px solid rgba(212, 175, 55, 0.5);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+        }
+
+        .gothic-button {
+            background: linear-gradient(135deg, rgba(40, 31, 56, 0.9) 0%, rgba(20, 15, 30, 0.95) 100%);
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            color: #f5eaaf;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .gothic-button:hover {
+            background: linear-gradient(135deg, rgba(75, 58, 102, 0.95) 0%, rgba(40, 30, 58, 0.98) 100%);
+            border-color: rgba(255, 215, 0, 0.85);
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .gothic-button:active {
+            transform: translateY(1px);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(8, 6, 12, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(212, 175, 55, 0.4);
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(212, 175, 55, 0.7);
+        }
+
+        /* Modal styling */
+        .modal-bg {
+            background: rgba(2, 1, 4, 0.88);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="w-screen h-screen overflow-hidden">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container" class="w-full h-full absolute inset-0 z-0"></div>
+
+    <!-- UI Overlay Header -->
+    <header class="absolute top-4 left-4 right-4 z-10 flex justify-between items-center pointer-events-none">
+        <div class="gothic-panel px-6 py-3 rounded-2xl flex items-center gap-4 pointer-events-auto border-amber-500/40">
+            <h1 class="text-2xl font-gothic text-amber-200 tracking-wider flex items-center gap-2">
+                <span class="text-amber-400">⚔️</span> Cathedral Sanctum
+            </h1>
+            <span class="text-xs text-amber-500/70 uppercase tracking-widest hidden sm:inline font-semibold">Hyper-Realistic 3D</span>
+        </div>
+
+        <div class="gothic-panel px-5 py-2.5 rounded-2xl flex items-center gap-3.5 pointer-events-auto">
+            <div id="turn-indicator-dot" class="w-4 h-4 rounded-full bg-amber-100 shadow-[0_0_12px_#fff]"></div>
+            <span id="turn-text" class="text-sm font-semibold tracking-wide text-amber-100">White's Turn</span>
+        </div>
+    </header>
+
+    <!-- UI Sidebar Controls & History -->
+    <aside class="absolute left-4 top-24 bottom-6 w-80 z-10 flex flex-col gap-4 pointer-events-none hidden md:flex">
+        <!-- Game Configuration Panel -->
+        <div class="gothic-panel p-4.5 rounded-2xl pointer-events-auto flex flex-col gap-3">
+            <h2 class="text-xs uppercase font-bold text-amber-400 tracking-widest border-b border-amber-500/20 pb-1.5 flex justify-between items-center">
+                <span>Sanctum Settings</span>
+                <button id="btn-ambient-audio" class="text-amber-300 hover:text-amber-100 text-xs px-2 py-0.5 rounded gothic-button">
+                    🔊 Choir
+                </button>
+            </h2>
+
+            <!-- Dynamic Environment Selector -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs text-slate-300 font-medium">Realm Environment</label>
+                <select id="environment-select" class="gothic-button px-3 py-2 rounded-xl text-xs font-semibold outline-none cursor-pointer">
+                    <option value="cathedral" selected>🏰 Gothic Cathedral</option>
+                    <option value="park-house">🏡 House in Park & Flowers</option>
+                    <option value="mountain-sunset">🌅 Mountain Sunset Peak</option>
+                    <option value="mystic-forest">🌲 Mystic Forest</option>
+                </select>
+            </div>
+           
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs text-slate-300 font-medium">Opponent Skill</label>
+                <select id="mode-select" class="gothic-button px-3 py-2 rounded-xl text-xs font-semibold outline-none cursor-pointer">
+                    <option value="ai-easy">Acolyte (Easy AI)</option>
+                    <option value="ai-medium" selected>Inquisitor (Medium AI)</option>
+                    <option value="ai-hard">Grandmaster (Hard AI)</option>
+                    <option value="local">Pass & Play (Local Friend)</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs text-slate-300 font-medium">Player Color</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-color-white" class="gothic-button py-2 rounded-xl text-xs font-semibold border-amber-400 text-amber-200">White Ivory</button>
+                    <button id="btn-color-black" class="gothic-button py-2 rounded-xl text-xs font-semibold text-slate-400 opacity-60">Black Ebony</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-1">
+                <button id="btn-undo" class="gothic-button py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                    <span>↩</span> Undo Move
+                </button>
+                <button id="btn-reset" class="gothic-button py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 text-red-300 hover:text-red-100">
+                    <span>↻</span> New Game
+                </button>
+            </div>
+        </div>
+
+        <!-- Move History & Captured Pieces Graveyard -->
+        <div class="gothic-panel p-4.5 rounded-2xl pointer-events-auto flex-1 flex flex-col min-h-0">
+            <h2 class="text-xs uppercase font-bold text-amber-400 tracking-widest border-b border-amber-500/20 pb-1.5 mb-2.5">
+                Chronicle & Offertory
+            </h2>
+           
+            <!-- History Log -->
+            <div id="move-history" class="flex-1 overflow-y-auto space-y-1 text-xs pr-1 font-mono">
+                <!-- Log entries injected here -->
+            </div>
+        </div>
+    </aside>
+
+    <!-- Bottom Camera & View Presets -->
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2 gothic-panel p-2 rounded-2xl pointer-events-auto">
+        <button id="cam-white" class="gothic-button px-3.5 py-2 rounded-xl text-xs font-semibold">White Perspective</button>
+        <button id="cam-black" class="gothic-button px-3.5 py-2 rounded-xl text-xs font-semibold">Black Perspective</button>
+        <button id="cam-top" class="gothic-button px-3.5 py-2 rounded-xl text-xs font-semibold">Overhead</button>
+        <button id="cam-cinematic" class="gothic-button px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-300">Cinematic Orbit</button>
+    </div>
+
+    <!-- Mobile Drawer Toggle Button -->
+    <button id="btn-mobile-menu" class="md:hidden fixed top-4 right-4 z-20 gothic-button p-3 rounded-2xl text-xl">
+        📜
+    </button>
+
+    <!-- Mobile Settings Overlay Modal -->
+    <div id="mobile-menu-modal" class="fixed inset-0 z-30 modal-bg flex items-center justify-center p-4 hidden md:hidden">
+        <div class="gothic-panel w-full max-w-sm p-6 rounded-2xl flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b border-amber-500/20 pb-2">
+                <h3 class="font-gothic text-xl text-amber-300">Sanctum Settings</h3>
+                <button id="btn-close-mobile" class="text-slate-400 text-2xl">&times;</button>
+            </div>
+           
+            <div class="flex flex-col gap-2">
+                <label class="text-xs text-slate-300">Environment</label>
+                <select id="mobile-env-select" class="gothic-button px-3 py-2.5 rounded-xl text-xs font-semibold">
+                    <option value="cathedral" selected>🏰 Gothic Cathedral</option>
+                    <option value="park-house">🏡 House in Park & Flowers</option>
+                    <option value="mountain-sunset">🌅 Mountain Sunset Peak</option>
+                    <option value="mystic-forest">🌲 Mystic Forest</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <label class="text-xs text-slate-300">Opponent</label>
+                <select id="mobile-mode-select" class="gothic-button px-3 py-2.5 rounded-xl text-xs font-semibold">
+                    <option value="ai-easy">Acolyte (Easy AI)</option>
+                    <option value="ai-medium" selected>Inquisitor (Medium AI)</option>
+                    <option value="ai-hard">Grandmaster (Hard AI)</option>
+                    <option value="local">Pass & Play (Local Friend)</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-2">
+                <button id="mobile-btn-undo" class="gothic-button py-2.5 rounded-xl text-xs font-semibold">Undo</button>
+                <button id="mobile-btn-reset" class="gothic-button py-2.5 rounded-xl text-xs font-semibold text-red-300">New Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pawn Promotion Modal -->
+    <div id="promotion-modal" class="fixed inset-0 z-40 modal-bg flex items-center justify-center p-4 hidden">
+        <div class="gothic-panel p-6 rounded-3xl flex flex-col items-center gap-5 border-amber-400/60 gothic-border-glow max-w-xs w-full">
+            <h3 class="font-gothic text-2xl text-amber-200">Select Promotion</h3>
+            <div class="grid grid-cols-2 gap-3 w-full">
+                <button data-piece="q" class="promo-btn gothic-button p-4 rounded-2xl text-4xl flex flex-col items-center justify-center gap-1">♛ <span class="text-xs font-mono text-amber-300/80">Queen</span></button>
+                <button data-piece="r" class="promo-btn gothic-button p-4 rounded-2xl text-4xl flex flex-col items-center justify-center gap-1">♜ <span class="text-xs font-mono text-amber-300/80">Rook</span></button>
+                <button data-piece="b" class="promo-btn gothic-button p-4 rounded-2xl text-4xl flex flex-col items-center justify-center gap-1">♝ <span class="text-xs font-mono text-amber-300/80">Bishop</span></button>
+                <button data-piece="n" class="promo-btn gothic-button p-4 rounded-2xl text-4xl flex flex-col items-center justify-center gap-1">♞ <span class="text-xs font-mono text-amber-300/80">Knight</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameover-modal" class="fixed inset-0 z-40 modal-bg flex items-center justify-center p-4 hidden">
+        <div class="gothic-panel p-8 rounded-3xl flex flex-col items-center gap-4 text-center max-w-sm gothic-border-glow">
+            <div id="gameover-icon" class="text-6xl mb-1">👑</div>
+            <h2 id="gameover-title" class="font-gothic text-3xl text-amber-300">Checkmate!</h2>
+            <p id="gameover-body" class="text-sm text-slate-300 leading-relaxed">White has conquered the Gothic Altar.</p>
+            <button id="btn-restart-gameover" class="gothic-button px-8 py-3 rounded-xl text-xs font-bold tracking-widest uppercase mt-2">
+                Recommence Sanctum
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game Engine -->
+    <script>
+        class GothicAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.isChoirPlaying = false;
+                this.choirNodes = [];
+            }
+
+            initContext() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playStoneSlide() {
+                this.initContext();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.15);
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(300, this.ctx.currentTime);
+
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            }
+
+            playCapture() {
+                this.initContext();
+                if (!this.ctx) return;
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.25);
+
+                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.25);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playCheckBell() {
+                this.initContext();
+                if (!this.ctx) return;
+
+                const freqs = [440, 880, 1320];
+                freqs.forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+                    const vol = 0.2 / (i + 1);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 1.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 1.2);
+                });
+            }
+
+            toggleChoirAtmosphere() {
+                this.initContext();
+                if (!this.ctx) return false;
+
+                if (this.isChoirPlaying) {
+                    this.choirNodes.forEach(n => {
+                        try { n.gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 1); } catch (e) {}
+                    });
+                    this.choirNodes = [];
+                    this.isChoirPlaying = false;
+                    return false;
+                } else {
+                    const chord = [220, 261.63, 329.63, 440];
+                    this.choirNodes = chord.map(freq => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+                        gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+                        gain.gain.linearRampToValueAtTime(0.03, this.ctx.currentTime + 2);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+
+                        osc.start();
+                        return { osc, gain };
+                    });
+
+                    this.isChoirPlaying = true;
+                    return true;
+                }
+            }
+        }
+
+        class ProceduralTextures {
+            static createStoneTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = '#2b2733';
+                ctx.fillRect(0, 0, 512, 512);
+
+                const imgData = ctx.getImageData(0, 0, 512, 512);
+                const data = imgData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const noise = (Math.random() - 0.5) * 35;
+                    data[i] = Math.min(255, Math.max(0, data[i] + noise));
+                    data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise));
+                    data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise));
+                }
+                ctx.putImageData(imgData, 0, 0);
+
+                ctx.strokeStyle = 'rgba(10, 8, 14, 0.4)';
+                ctx.lineWidth = 3;
+                for (let y = 0; y < 512; y += 64) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(512, y);
+                    ctx.stroke();
+
+                    for (let x = (y % 128 === 0 ? 0 : 32); x < 512; x += 64) {
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x, y + 64);
+                        ctx.stroke();
+                    }
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                return texture;
+            }
+
+            static createMarbleVeinTexture(isDark = false) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = isDark ? '#121018' : '#eae5d9';
+                ctx.fillRect(0, 0, 512, 512);
+
+                ctx.strokeStyle = isDark ? 'rgba(212, 175, 55, 0.25)' : 'rgba(80, 75, 90, 0.2)';
+                for (let i = 0; i < 8; i++) {
+                    ctx.beginPath();
+                    ctx.lineWidth = 1 + Math.random() * 3;
+                    let x = Math.random() * 512;
+                    let y = 0;
+                    ctx.moveTo(x, y);
+                    while (y < 512) {
+                        x += (Math.random() - 0.5) * 40;
+                        y += Math.random() * 30 + 10;
+                        ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            static createWoodTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = '#5c3a21';
+                ctx.fillRect(0, 0, 512, 512);
+
+                ctx.strokeStyle = '#3d2312';
+                for (let i = 0; i < 60; i++) {
+                    ctx.beginPath();
+                    ctx.lineWidth = 1 + Math.random() * 2;
+                    let x = Math.random() * 512;
+                    ctx.moveTo(x, 0);
+                    ctx.bezierCurveTo(x + 20, 170, x - 20, 340, x + (Math.random() - 0.5) * 30, 512);
+                    ctx.stroke();
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(4, 4);
+                return texture;
+            }
+        }
+
+        const sounds = new GothicAudioEngine();
+
+        class GothicChessGame {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.chess = new Chess();
+
+                this.playerColor = 'w';
+                this.gameMode = 'ai-medium';
+                this.currentEnv = 'cathedral';
+                this.isAIThinking = false;
+                this.isCinematicOrbit = false;
+
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+
+                this.materials = {};
+                this.pieceMeshes = {};
+                this.boardSquares = {};
+                this.highlightRings = [];
+                this.candleFlickers = [];
+                this.animatedElements = [];
+                this.envGroup = new THREE.Group();
+                this.selectedSquare = null;
+                this.validMoves = [];
+                this.animatingPieces = [];
+                this.pendingMove = null;
+
+                this.stoneTexture = ProceduralTextures.createStoneTexture();
+                this.whiteMarbleTexture = ProceduralTextures.createMarbleVeinTexture(false);
+                this.blackMarbleTexture = ProceduralTextures.createMarbleVeinTexture(true);
+                this.woodTexture = ProceduralTextures.createWoodTexture();
+
+                this.initThreeJS();
+                this.scene.add(this.envGroup);
+                this.buildEnvironment('cathedral');
+                this.initMaterials();
+                this.buildChessboard();
+                this.spawnAllPieces();
+                this.setupInteraction();
+                this.bindUI();
+
+                this.animate = this.animate.bind(this);
+                requestAnimationFrame(this.animate);
+
+                window.addEventListener('resize', () => this.onWindowResize());
+            }
+
+            initThreeJS() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x030205);
+                this.scene.fog = new THREE.FogExp2(0x030205, 0.035);
+
+                const width = this.container.clientWidth || window.innerWidth;
+                const height = this.container.clientHeight || window.innerHeight;
+
+                this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+                this.camera.position.set(0, 5.2, 5.8);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+                this.renderer.setSize(width, height);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.1;
+
+                this.container.appendChild(this.renderer.domElement);
+
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.maxPolarAngle = Math.PI / 2 - 0.02;
+                this.controls.minDistance = 2.0;
+                this.controls.maxDistance = 14.0;
+                this.controls.target.set(0, 0, 0);
+
+                const altarGeo = new THREE.BoxGeometry(7.2, 0.8, 7.2);
+                const altarMat = new THREE.MeshStandardMaterial({
+                    color: 0x181420,
+                    map: this.stoneTexture,
+                    roughness: 0.6,
+                    metalness: 0.2
+                });
+                const altar = new THREE.Mesh(altarGeo, altarMat);
+                altar.position.set(0, -0.4, 0);
+                altar.receiveShadow = true;
+                this.scene.add(altar);
+
+                this.floorGeo = new THREE.PlaneGeometry(60, 60);
+                this.floorMat = new THREE.MeshStandardMaterial({
+                    color: 0x14111a,
+                    map: this.stoneTexture,
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+                this.floorMesh = new THREE.Mesh(this.floorGeo, this.floorMat);
+                this.floorMesh.rotation.x = -Math.PI / 2;
+                this.floorMesh.position.set(0, -1, 0);
+                this.floorMesh.receiveShadow = true;
+                this.scene.add(this.floorMesh);
+            }
+
+            buildEnvironment(type) {
+                while (this.envGroup.children.length > 0) {
+                    const obj = this.envGroup.children[0];
+                    this.envGroup.remove(obj);
+                }
+                this.candleFlickers = [];
+                this.animatedElements = [];
+                this.currentEnv = type;
+
+                if (type === 'cathedral') {
+                    this.scene.background = new THREE.Color(0x030205);
+                    this.scene.fog = new THREE.FogExp2(0x030205, 0.035);
+
+                    if (this.floorMat) {
+                        this.floorMat.color.setHex(0x14111a);
+                        this.floorMat.map = this.stoneTexture;
+                        this.floorMat.needsUpdate = true;
+                    }
+
+                    const ambLight = new THREE.AmbientLight(0xd4af37, 0.35);
+                    this.envGroup.add(ambLight);
+
+                    const dirLight = new THREE.DirectionalLight(0xfff0dd, 1.8);
+                    dirLight.position.set(5, 12, 6);
+                    dirLight.castShadow = true;
+                    this.envGroup.add(dirLight);
+
+                    const pillarGeo = new THREE.CylinderGeometry(0.5, 0.6, 14, 16);
+                    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1f1b26, map: this.stoneTexture, roughness: 0.7 });
+                    const positions = [[-5, -5], [5, -5], [-5, 5], [5, 5]];
+                    positions.forEach(p => {
+                        const pil = new THREE.Mesh(pillarGeo, pillarMat);
+                        pil.position.set(p[0], 6, p[1]);
+                        pil.receiveShadow = true;
+                        this.envGroup.add(pil);
+                    });
+
+                    const candleCoords = [[-3.6, -3.6], [3.6, -3.6], [-3.6, 3.6], [3.6, 3.6]];
+                    candleCoords.forEach(c => {
+                        const candleLight = new THREE.PointLight(0xffaa33, 1.2, 7);
+                        candleLight.position.set(c[0], 0.6, c[1]);
+                        candleLight.castShadow = true;
+                        this.envGroup.add(candleLight);
+                        this.candleFlickers.push(candleLight);
+                    });
+
+                } else if (type === 'park-house') {
+                    this.scene.background = new THREE.Color(0x87ceeb);
+                    this.scene.fog = new THREE.FogExp2(0xa0d8ef, 0.015);
+
+                    if (this.floorMat) {
+                        this.floorMat.color.setHex(0x5a3d28);
+                        this.floorMat.map = this.woodTexture;
+                        this.floorMat.needsUpdate = true;
+                    }
+
+                    const ambLight = new THREE.AmbientLight(0xfffaed, 0.8);
+                    this.envGroup.add(ambLight);
+
+                    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.8);
+                    sunLight.position.set(8, 12, 12);
+                    sunLight.castShadow = true;
+                    this.envGroup.add(sunLight);
+
+                    const houseGroup = new THREE.Group();
+
+                    const wallMat = new THREE.MeshStandardMaterial({ color: 0xded2be, map: this.stoneTexture, roughness: 0.8, side: THREE.BackSide });
+                    const roomBody = new THREE.Mesh(new THREE.BoxGeometry(16, 9, 16), wallMat);
+                    roomBody.position.set(0, 3.5, 0);
+                    roomBody.receiveShadow = true;
+                    houseGroup.add(roomBody);
+
+                    const beamMat = new THREE.MeshStandardMaterial({ color: 0x3d2312, map: this.woodTexture, roughness: 0.7 });
+                    for (let bx = -6; bx <= 6; bx += 4) {
+                        const beam = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 16), beamMat);
+                        beam.position.set(bx, 7.8, 0);
+                        beam.castShadow = true;
+                        houseGroup.add(beam);
+                    }
+
+                    const fireplace = new THREE.Mesh(new THREE.BoxGeometry(3.5, 3.5, 1.5), new THREE.MeshStandardMaterial({ color: 0x2e2825, map: this.stoneTexture }));
+                    fireplace.position.set(-6, 1.25, -6.5);
+                    houseGroup.add(fireplace);
+
+                    const fireLight = new THREE.PointLight(0xff7700, 2.8, 10);
+                    fireLight.position.set(-6, 1.25, -5.5);
+                    houseGroup.add(fireLight);
+                    this.candleFlickers.push(fireLight);
+
+                    const rugMat = new THREE.MeshStandardMaterial({ color: 0x8b263e, roughness: 0.9 });
+                    const rug = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.02, 3.5), rugMat);
+                    rug.position.set(-5, -0.49, -3.5);
+                    houseGroup.add(rug);
+
+                    const shelfMat = new THREE.MeshStandardMaterial({ color: 0x4a2c11, map: this.woodTexture, roughness: 0.7 });
+                    const bookshelf = new THREE.Mesh(new THREE.BoxGeometry(0.8, 4.5, 2.5), shelfMat);
+                    bookshelf.position.set(-7.2, 1.75, 1);
+                    houseGroup.add(bookshelf);
+
+                    const bookColors = [0x9c27b0, 0x2196f3, 0x4caf50, 0xff9800, 0xe91e63];
+                    for (let b = 0; b < 12; b++) {
+                        const book = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.4, 0.5 + Math.random() * 0.2, 0.12),
+                            new THREE.MeshStandardMaterial({ color: bookColors[b % bookColors.length] })
+                        );
+                        book.position.set(-7.1, 0.8 + (b % 3) * 1.2, -0.8 + Math.floor(b / 3) * 0.4);
+                        houseGroup.add(book);
+                    }
+
+                    for (let dir of [-1, 1]) {
+                        const chairGroup = new THREE.Group();
+                        const seat = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 1.2), shelfMat);
+                        const back = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.15), shelfMat);
+                        back.position.set(0, 0.75, -0.52);
+                        const cushion = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 1.0), rugMat);
+                        cushion.position.set(0, 0.1, 0);
+                        chairGroup.add(seat, back, cushion);
+                        chairGroup.position.set(0, -0.1, dir * 4.6);
+                        // Rotate chairs to face the board directly (dir === 1 faces north, dir === -1 faces south)
+                        chairGroup.rotation.y = dir === 1 ? Math.PI : 0;
+                        houseGroup.add(chairGroup);
+                    }
+
+                    const glassMat = new THREE.MeshPhysicalMaterial({
+                        color: 0xe0f7fa,
+                        roughness: 0.1,
+                        transmission: 0.85,
+                        opacity: 0.9,
+                        transparent: true
+                    });
+
+                    const windowFrame = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 0.2), beamMat);
+                    windowFrame.position.set(0, 3.5, -7.9);
+                    const glassPane = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 4.6), glassMat);
+                    glassPane.position.set(0, 3.5, -7.8);
+                    houseGroup.add(windowFrame, glassPane);
+
+                    const outdoorGround = new THREE.Mesh(new THREE.PlaneGeometry(50, 30), new THREE.MeshStandardMaterial({ color: 0x3e7b32 }));
+                    outdoorGround.rotation.x = -Math.PI / 2;
+                    outdoorGround.position.set(0, -0.9, -20);
+                    houseGroup.add(outdoorGround);
+
+                    this.envGroup.add(houseGroup);
+
+                    const flowerColors = [0xe91e63, 0xffeb3b, 0x9c27b0, 0x2196f3];
+                    for (let i = 0; i < 70; i++) {
+                        const col = flowerColors[i % flowerColors.length];
+                        const fl = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.2, 8, 8),
+                            new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 })
+                        );
+                        const fx = (Math.random() - 0.5) * 30;
+                        const fz = -10 - Math.random() * 18;
+                        fl.position.set(fx, -0.7, fz);
+                        this.envGroup.add(fl);
+                        this.animatedElements.push({ mesh: fl, basePos: new THREE.Vector3(fx, -0.7, fz), speed: 2 + Math.random() * 2, amplitude: 0.15 });
+                    }
+
+                    for (let t = 0; t < 12; t++) {
+                        const tree = this.createRealisticTree(0x3d6b2c, false);
+                        const tx = (Math.random() - 0.5) * 28;
+                        const tz = -12 - Math.random() * 15;
+                        tree.position.set(tx, -0.9, tz);
+                        this.envGroup.add(tree);
+                    }
+
+                } else if (type === 'mountain-sunset') {
+                    this.scene.background = new THREE.Color(0xff7e5f);
+                    this.scene.fog = new THREE.FogExp2(0xfeb47b, 0.02);
+
+                    if (this.floorMat) {
+                        this.floorMat.color.setHex(0x382923);
+                        this.floorMat.map = this.stoneTexture;
+                        this.floorMat.needsUpdate = true;
+                    }
+
+                    const ambLight = new THREE.AmbientLight(0xffa07a, 0.6);
+                    this.envGroup.add(ambLight);
+
+                    const sun = new THREE.DirectionalLight(0xff5722, 2.5);
+                    sun.position.set(-10, 6, -15);
+                    sun.castShadow = true;
+                    this.envGroup.add(sun);
+
+                    for (let i = 0; i < 18; i++) {
+                        const mtnGeo = new THREE.ConeGeometry(4 + Math.random() * 5, 8 + Math.random() * 10, 5);
+                        const mtnMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.9 });
+                        const mtn = new THREE.Mesh(mtnGeo, mtnMat);
+                        const angle = (i / 18) * Math.PI * 2;
+                        const dist = 16 + Math.random() * 8;
+                        mtn.position.set(Math.cos(angle) * dist, 2, Math.sin(angle) * dist);
+                        this.envGroup.add(mtn);
+                    }
+
+                    for (let t = 0; t < 30; t++) {
+                        const isPine = t % 2 === 0;
+                        const tree = this.createRealisticTree(isPine ? 0x2d4a27 : 0x3d6b2c, isPine);
+                        const tx = (Math.random() - 0.5) * 22;
+                        const tz = (Math.random() - 0.5) * 22;
+                        if (Math.abs(tx) > 5 || Math.abs(tz) > 5) {
+                            tree.position.set(tx, 0, tz);
+                            this.envGroup.add(tree);
+                            this.animatedElements.push({ mesh: tree, basePos: new THREE.Vector3(tx, 0, tz), speed: 1.2, amplitude: 0.05 });
+                        }
+                    }
+
+                } else if (type === 'mystic-forest') {
+                    this.scene.background = new THREE.Color(0x0a192f);
+                    this.scene.fog = new THREE.FogExp2(0x0a192f, 0.04);
+
+                    if (this.floorMat) {
+                        this.floorMat.color.setHex(0x0a221f);
+                        this.floorMat.map = null;
+                        this.floorMat.needsUpdate = true;
+                    }
+
+                    const ambLight = new THREE.AmbientLight(0x00bcd4, 0.4);
+                    this.envGroup.add(ambLight);
+
+                    const moon = new THREE.PointLight(0x80deea, 2.0, 30);
+                    moon.position.set(0, 10, 0);
+                    this.envGroup.add(moon);
+
+                    for (let i = 0; i < 40; i++) {
+                        const isPine = i % 3 === 0;
+                        const tree = this.createRealisticTree(isPine ? 0x0d3830 : 0x134d42, isPine);
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = 7 + Math.random() * 15;
+                        tree.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+                        this.envGroup.add(tree);
+                        this.animatedElements.push({ mesh: tree, basePos: new THREE.Vector3(tree.position.x, 0, tree.position.z), speed: 0.8 + Math.random() * 0.5, amplitude: 0.04 });
+                    }
+                }
+            }
+
+            createRealisticTree(foliageColorHex = 0x2e7d32, isPine = false) {
+                const treeGroup = new THREE.Group();
+                const trunkMat = new THREE.MeshStandardMaterial({ color: 0x2e1c0c, map: this.woodTexture, roughness: 0.9 });
+                const foliageMat = new THREE.MeshStandardMaterial({ color: foliageColorHex, roughness: 0.6, flatShading: true });
+
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.35, 3.8, 10), trunkMat);
+                trunk.position.y = 1.9;
+                trunk.castShadow = true;
+                trunk.receiveShadow = true;
+                treeGroup.add(trunk);
+
+                if (isPine) {
+                    const layers = 5;
+                    for (let l = 0; l < layers; l++) {
+                        const radius = 1.5 - l * 0.25;
+                        const height = 1.4 - l * 0.18;
+                        const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 8), foliageMat);
+                        cone.position.y = 1.8 + l * 0.75;
+                        cone.rotation.y = (l * Math.PI) / 4;
+                        cone.castShadow = true;
+                        cone.receiveShadow = true;
+                        treeGroup.add(cone);
+                    }
+                } else {
+                    const leafClusters = [
+                        { pos: [0, 3.8, 0], scale: [1.6, 1.4, 1.6] },
+                        { pos: [0.7, 3.2, 0.5], scale: [1.1, 1.0, 1.1] },
+                        { pos: [-0.7, 3.4, -0.5], scale: [1.2, 1.1, 1.2] },
+                        { pos: [0, 4.4, 0], scale: [1.1, 1.1, 1.1] }
+                    ];
+
+                    leafClusters.forEach(lc => {
+                        const cluster = new THREE.Mesh(new THREE.IcosahedronGeometry(1.0, 1), foliageMat);
+                        cluster.position.set(lc.pos[0], lc.pos[1], lc.pos[2]);
+                        cluster.scale.set(lc.scale[0], lc.scale[1], lc.scale[2]);
+                        cluster.castShadow = true;
+                        cluster.receiveShadow = true;
+                        treeGroup.add(cluster);
+                    });
+                }
+
+                const scale = 0.85 + Math.random() * 0.45;
+                treeGroup.scale.set(scale, scale, scale);
+                return treeGroup;
+            }
+
+            bindUI() {
+                const envSelect = document.getElementById('environment-select');
+                const mobileEnvSelect = document.getElementById('mobile-env-select');
+
+                const handleEnvChange = (e) => {
+                    const val = e.target.value;
+                    envSelect.value = val;
+                    if (mobileEnvSelect) mobileEnvSelect.value = val;
+                    this.buildEnvironment(val);
+                };
+
+                if (envSelect) envSelect.addEventListener('change', handleEnvChange);
+                if (mobileEnvSelect) mobileEnvSelect.addEventListener('change', handleEnvChange);
+
+                const btnChoir = document.getElementById('btn-ambient-audio');
+                if (btnChoir) {
+                    btnChoir.addEventListener('click', () => {
+                        const active = sounds.toggleChoirAtmosphere();
+                        btnChoir.textContent = active ? '🔇 Choir' : '🔊 Choir';
+                    });
+                }
+
+                const modeSelect = document.getElementById('mode-select');
+                const mobileModeSelect = document.getElementById('mobile-mode-select');
+                const handleModeChange = (e) => {
+                    const val = e.target.value;
+                    this.gameMode = val;
+                    if (modeSelect) modeSelect.value = val;
+                    if (mobileModeSelect) mobileModeSelect.value = val;
+                };
+                if (modeSelect) modeSelect.addEventListener('change', handleModeChange);
+                if (mobileModeSelect) mobileModeSelect.addEventListener('change', handleModeChange);
+
+                const btnWhite = document.getElementById('btn-color-white');
+                const btnBlack = document.getElementById('btn-color-black');
+                if (btnWhite && btnBlack) {
+                    btnWhite.addEventListener('click', () => {
+                        this.playerColor = 'w';
+                        btnWhite.classList.add('border-amber-400', 'text-amber-200');
+                        btnWhite.classList.remove('text-slate-400', 'opacity-60');
+                        btnBlack.classList.remove('border-amber-400', 'text-amber-200');
+                        btnBlack.classList.add('text-slate-400', 'opacity-60');
+                        this.setCameraPreset('white');
+                    });
+                    btnBlack.addEventListener('click', () => {
+                        this.playerColor = 'b';
+                        btnBlack.classList.add('border-amber-400', 'text-amber-200');
+                        btnBlack.classList.remove('text-slate-400', 'opacity-60');
+                        btnWhite.classList.remove('border-amber-400', 'text-amber-200');
+                        btnWhite.classList.add('text-slate-400', 'opacity-60');
+                        this.setCameraPreset('black');
+                        if (this.chess.turn() === 'w' && this.gameMode !== 'local') {
+                            this.isAIThinking = true;
+                            setTimeout(() => this.makeAIMove(), 500);
+                        }
+                    });
+                }
+
+                document.getElementById('cam-white').addEventListener('click', () => this.setCameraPreset('white'));
+                document.getElementById('cam-black').addEventListener('click', () => this.setCameraPreset('black'));
+                document.getElementById('cam-top').addEventListener('click', () => this.setCameraPreset('top'));
+                document.getElementById('cam-cinematic').addEventListener('click', () => {
+                    this.isCinematicOrbit = !this.isCinematicOrbit;
+                    document.getElementById('cam-cinematic').classList.toggle('text-amber-300', this.isCinematicOrbit);
+                });
+
+                const handleReset = () => {
+                    this.chess.reset();
+                    this.spawnAllPieces();
+                    this.updateUI();
+                    document.getElementById('gameover-modal').classList.add('hidden');
+                };
+                document.getElementById('btn-reset').addEventListener('click', handleReset);
+                document.getElementById('mobile-btn-reset').addEventListener('click', handleReset);
+                document.getElementById('btn-restart-gameover').addEventListener('click', handleReset);
+
+                const handleUndo = () => {
+                    this.chess.undo();
+                    if (this.gameMode !== 'local') this.chess.undo();
+                    this.spawnAllPieces();
+                    this.updateUI();
+                };
+                document.getElementById('btn-undo').addEventListener('click', handleUndo);
+                document.getElementById('mobile-btn-undo').addEventListener('click', handleUndo);
+
+                document.querySelectorAll('.promo-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const target = e.currentTarget;
+                        const pieceType = target.getAttribute('data-piece');
+                        if (this.pendingMove) {
+                            this.pendingMove.promotion = pieceType;
+                            this.executeMove(this.pendingMove);
+                            this.pendingMove = null;
+                        }
+                        document.getElementById('promotion-modal').classList.add('hidden');
+                    });
+                });
+
+                const mobileMenuModal = document.getElementById('mobile-menu-modal');
+                document.getElementById('btn-mobile-menu').addEventListener('click', () => mobileMenuModal.classList.remove('hidden'));
+                document.getElementById('btn-close-mobile').addEventListener('click', () => mobileMenuModal.classList.add('hidden'));
+            }
+
+            setCameraPreset(type) {
+                this.isCinematicOrbit = false;
+                document.getElementById('cam-cinematic').classList.remove('text-amber-300');
+
+                if (type === 'white') {
+                    this.animateCameraTo(new THREE.Vector3(0, 5.2, 5.8));
+                } else if (type === 'black') {
+                    this.animateCameraTo(new THREE.Vector3(0, 5.2, -5.8));
+                } else if (type === 'top') {
+                    // Elevated camera height significantly and offset slightly to prevent gimbal lock, ensuring full board visibility across all screen aspect ratios
+                    this.animateCameraTo(new THREE.Vector3(0, 10.5, 0.01));
+                }
+            }
+
+            animateCameraTo(targetPos) {
+                const startPos = this.camera.position.clone();
+                let progress = 0;
+                const duration = 0.6;
+                const startTime = performance.now();
+
+                const updateCam = () => {
+                    const now = performance.now();
+                    progress = Math.min(1, (now - startTime) / (duration * 1000));
+                    this.camera.position.lerpVectors(startPos, targetPos, progress);
+                    this.controls.update();
+
+                    if (progress < 1) {
+                        requestAnimationFrame(updateCam);
+                    }
+                };
+                requestAnimationFrame(updateCam);
+            }
+
+            onWindowResize() {
+                const width = this.container.clientWidth || window.innerWidth;
+                const height = this.container.clientHeight || window.innerHeight;
+                this.camera.aspect = width / height;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(width, height);
+            }
+
+            animate() {
+                requestAnimationFrame(this.animate);
+                const time = performance.now() * 0.001;
+
+                this.candleFlickers.forEach((light, idx) => {
+                    light.intensity = 1.0 + Math.sin(time * 8 + idx) * 0.25 + (Math.random() - 0.5) * 0.1;
+                });
+
+                this.animatedElements.forEach(item => {
+                    item.mesh.position.x = item.basePos.x + Math.sin(time * item.speed) * item.amplitude;
+                });
+
+                for (let i = this.animatingPieces.length - 1; i >= 0; i--) {
+                    const anim = this.animatingPieces[i];
+                    anim.progress += 0.06;
+
+                    if (anim.progress >= 1) {
+                        anim.mesh.position.copy(anim.end);
+                        if (anim.onComplete) anim.onComplete();
+                        this.animatingPieces.splice(i, 1);
+                    } else {
+                        anim.mesh.position.lerpVectors(anim.start, anim.end, anim.progress);
+                        anim.mesh.position.y = anim.start.y + Math.sin(anim.progress * Math.PI) * 0.6;
+                    }
+                }
+
+                if (this.isCinematicOrbit) {
+                    const radius = 6.8;
+                    this.camera.position.x = Math.sin(time * 0.25) * radius;
+                    this.camera.position.z = Math.cos(time * 0.25) * radius;
+                    this.camera.position.y = 5.2 + Math.sin(time * 0.15) * 1.0;
+                }
+
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            initMaterials() {
+                this.materials = {
+                    whitePiece: new THREE.MeshPhysicalMaterial({
+                        color: 0xf5eedc,
+                        map: this.whiteMarbleTexture,
+                        roughness: 0.25,
+                        metalness: 0.1,
+                        clearcoat: 0.3,
+                        clearcoatRoughness: 0.1
+                    }),
+                    blackPiece: new THREE.MeshPhysicalMaterial({
+                        color: 0x1f1b24,
+                        map: this.blackMarbleTexture,
+                        roughness: 0.3,
+                        metalness: 0.25,
+                        clearcoat: 0.4,
+                        clearcoatRoughness: 0.2
+                    }),
+                    lightSquare: new THREE.MeshStandardMaterial({
+                        color: 0xe0d8c3,
+                        map: this.whiteMarbleTexture,
+                        roughness: 0.35,
+                        metalness: 0.15
+                    }),
+                    darkSquare: new THREE.MeshStandardMaterial({
+                        color: 0x1a1622,
+                        map: this.blackMarbleTexture,
+                        roughness: 0.4,
+                        metalness: 0.2
+                    })
+                };
+            }
+
+            buildChessboard() {
+                const squareGeo = new THREE.BoxGeometry(0.76, 0.14, 0.76);
+                const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+                for (let rank = 0; rank < 8; rank++) {
+                    for (let file = 0; file < 8; file++) {
+                        const isDark = (rank + file) % 2 === 1;
+                        const mat = isDark ? this.materials.darkSquare : this.materials.lightSquare;
+                        const tile = new THREE.Mesh(squareGeo, mat);
+
+                        const x = (file - 3.5) * 0.78;
+                        const z = (3.5 - rank) * 0.78;
+                        tile.position.set(x, 0.07, z);
+                        tile.receiveShadow = true;
+                        tile.castShadow = true;
+
+                        const squareName = files[file] + (rank + 1);
+                        tile.userData = { square: squareName };
+
+                        this.scene.add(tile);
+                        this.boardSquares[squareName] = tile;
+                    }
+                }
+            }
+
+            spawnAllPieces() {
+                Object.values(this.pieceMeshes).forEach(mesh => this.scene.remove(mesh));
+                this.pieceMeshes = {};
+
+                const board = this.chess.board();
+                const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+                for (let r = 0; r < 8; r++) {
+                    for (let f = 0; f < 8; f++) {
+                        const item = board[r][f];
+                        if (item) {
+                            const sq = files[f] + (8 - r);
+                            const pieceMesh = this.createPieceMesh(item.type, item.color);
+                            const pos = this.getSquarePosition(sq);
+                            pieceMesh.position.copy(pos);
+                           
+                            if (item.color === 'b') {
+                                pieceMesh.rotation.y = Math.PI;
+                            }
+                           
+                            pieceMesh.userData = { square: sq, type: item.type, color: item.color };
+                            this.scene.add(pieceMesh);
+                            this.pieceMeshes[sq] = pieceMesh;
+                        }
+                    }
+                }
+            }
+
+            createPieceMesh(type, color) {
+                const group = new THREE.Group();
+                const mat = color === 'w' ? this.materials.whitePiece : this.materials.blackPiece;
+
+                if (type === 'p') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 0.12, 16), mat);
+                    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.26, 0.45, 16), mat);
+                    body.position.y = 0.28;
+                    const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), mat);
+                    head.position.y = 0.58;
+                    group.add(base, body, head);
+                } else if (type === 'r') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.14, 16), mat);
+                    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.5, 16), mat);
+                    pillar.position.y = 0.32;
+                    const topRim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.2, 16), mat);
+                    topRim.position.y = 0.62;
+                   
+                    for (let i = 0; i < 4; i++) {
+                        const crenel = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.12), mat);
+                        const angle = (i * Math.PI) / 2;
+                        crenel.position.set(Math.sin(angle) * 0.22, 0.73, Math.cos(angle) * 0.22);
+                        group.add(crenel);
+                    }
+                    group.add(base, pillar, topRim);
+                } else if (type === 'n') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.14, 16), mat);
+                    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.45, 0.32), mat);
+                    chest.position.set(0, 0.35, 0);
+                    const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.25, 0.38), mat);
+                    head.position.set(0, 0.62, 0.08);
+                    head.rotation.x = 0.3;
+                    group.add(base, chest, head);
+                } else if (type === 'b') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.14, 16), mat);
+                    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.28, 0.55, 16), mat);
+                    body.position.y = 0.38;
+                    const mitre = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), mat);
+                    mitre.scale.set(1, 1.35, 1);
+                    mitre.position.y = 0.72;
+                    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), mat);
+                    finial.position.y = 1.02;
+                    group.add(base, body, mitre, finial);
+                } else if (type === 'q') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.16, 16), mat);
+                    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.3, 0.7, 16), mat);
+                    body.position.y = 0.48;
+                    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.18, 0.3, 16), mat);
+                    crown.position.y = 0.92;
+                    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), mat);
+                    orb.position.y = 1.12;
+                    group.add(base, body, crown, orb);
+                } else if (type === 'k') {
+                    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.38, 0.16, 16), mat);
+                    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.75, 16), mat);
+                    body.position.y = 0.52;
+                    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.3, 16), mat);
+                    crown.position.y = 0.98;
+                    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.24, 0.06), mat);
+                    crossV.position.y = 1.22;
+                    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.06), mat);
+                    crossH.position.y = 1.25;
+                    group.add(base, body, crown, crossV, crossH);
+                }
+
+                group.traverse(child => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                    }
+                });
+
+                return group;
+            }
+
+            getSquarePosition(sq) {
+                const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+                const fileIdx = files.indexOf(sq[0]);
+                const rankIdx = parseInt(sq[1]) - 1;
+
+                const x = (fileIdx - 3.5) * 0.78;
+                const z = (3.5 - rankIdx) * 0.78;
+                return new THREE.Vector3(x, 0.14, z);
+            }
+
+            setupInteraction() {
+                let isDragging = false;
+                let pointerDownPos = new THREE.Vector2();
+
+                const onPointerDown = (e) => {
+                    isDragging = false;
+                    pointerDownPos.set(e.clientX, e.clientY);
+                };
+
+                const onPointerMove = (e) => {
+                    if (Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y) > 5) {
+                        isDragging = true;
+                    }
+                };
+
+                const onPointerUp = (e) => {
+                    // Ignore clicks triggered during camera rotation or drag
+                    if (isDragging || this.isAIThinking) return;
+
+                    const rect = this.renderer.domElement.getBoundingClientRect();
+                    this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                    this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+                    const pieces = Object.values(this.pieceMeshes);
+                    const squares = Object.values(this.boardSquares);
+                   
+                    // Raycast recursively to hit nested geometries reliably
+                    const intersects = this.raycaster.intersectObjects([...pieces, ...squares], true);
+
+                    if (intersects.length > 0) {
+                        let hitObj = intersects[0].object;
+                       
+                        // Traverse up to find user data for square designation
+                        while (hitObj && !hitObj.userData.square && hitObj.parent && hitObj.parent !== this.scene) {
+                            hitObj = hitObj.parent;
+                        }
+
+                        if (hitObj && hitObj.userData && hitObj.userData.square) {
+                            this.handleSquareClick(hitObj.userData.square);
+                        }
+                    }
+                };
+
+                const domEl = this.renderer.domElement;
+                domEl.addEventListener('pointerdown', onPointerDown);
+                domEl.addEventListener('pointermove', onPointerMove);
+                domEl.addEventListener('pointerup', onPointerUp);
+            }
+
+            handleSquareClick(sq) {
+                const turn = this.chess.turn();
+
+                if (this.gameMode !== 'local' && turn !== this.playerColor) return;
+
+                if (this.selectedSquare) {
+                    if (this.selectedSquare === sq) {
+                        this.selectedSquare = null;
+                        this.clearHighlights();
+                        return;
+                    }
+
+                    const moveObj = this.validMoves.find(m => m.to === sq);
+                    if (moveObj) {
+                        if (moveObj.flags.includes('p')) {
+                            this.pendingMove = moveObj;
+                            document.getElementById('promotion-modal').classList.remove('hidden');
+                        } else {
+                            this.executeMove(moveObj);
+                        }
+                        this.selectedSquare = null;
+                        this.clearHighlights();
+                        return;
+                    }
+                }
+
+                const pieceOnSquare = this.chess.get(sq);
+                if (pieceOnSquare && pieceOnSquare.color === turn) {
+                    this.selectedSquare = sq;
+                    this.validMoves = this.chess.moves({ square: sq, verbose: true });
+                    this.highlightSquareAndMoves(sq, this.validMoves);
+                } else {
+                    this.selectedSquare = null;
+                    this.clearHighlights();
+                }
+            }
+
+            highlightSquareAndMoves(selectedSq, moves) {
+                this.clearHighlights();
+
+                const createRing = (sq, colorHex) => {
+                    const pos = this.getSquarePosition(sq);
+                    const ringGeo = new THREE.RingGeometry(0.28, 0.38, 24);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.rotation.x = -Math.PI / 2;
+                    ring.position.set(pos.x, 0.16, pos.z);
+                    this.scene.add(ring);
+                    this.highlightRings.push(ring);
+                };
+
+                createRing(selectedSq, 0xf59e0b);
+                moves.forEach(m => {
+                    createRing(m.to, m.captured ? 0xef4444 : 0x10b981);
+                });
+            }
+
+            clearHighlights() {
+                this.highlightRings.forEach(ring => this.scene.remove(ring));
+                this.highlightRings = [];
+            }
+
+            executeMove(moveObj) {
+                const moveResult = this.chess.move(moveObj);
+                if (!moveResult) return;
+
+                const fromSq = moveObj.from;
+                const toSq = moveObj.to;
+                const movingMesh = this.pieceMeshes[fromSq];
+
+                if (moveObj.captured && this.pieceMeshes[toSq]) {
+                    this.scene.remove(this.pieceMeshes[toSq]);
+                    delete this.pieceMeshes[toSq];
+                    sounds.playCapture();
+                } else {
+                    sounds.playStoneSlide();
+                }
+
+                delete this.pieceMeshes[fromSq];
+                this.pieceMeshes[toSq] = movingMesh;
+                movingMesh.userData.square = toSq;
+
+                const endPos = this.getSquarePosition(toSq);
+
+                this.animatingPieces.push({
+                    mesh: movingMesh,
+                    start: movingMesh.position.clone(),
+                    end: endPos,
+                    progress: 0,
+                    duration: 0.22,
+                    onComplete: () => {
+                        if (moveObj.flags.includes('k') || moveObj.flags.includes('q')) {
+                            this.spawnAllPieces();
+                        }
+
+                        if (this.chess.in_check()) {
+                            sounds.playCheckBell();
+                        }
+
+                        this.updateUI();
+                        this.checkGameOver();
+
+                        if (!this.chess.game_over() && this.gameMode !== 'local' && this.chess.turn() !== this.playerColor) {
+                            this.isAIThinking = true;
+                            setTimeout(() => this.makeAIMove(), 450);
+                        }
+                    }
+                });
+            }
+
+            makeAIMove() {
+                const moves = this.chess.moves({ verbose: true });
+                if (moves.length === 0) {
+                    this.isAIThinking = false;
+                    return;
+                }
+
+                let selectedMove = null;
+
+                if (this.gameMode === 'ai-easy') {
+                    selectedMove = moves[Math.floor(Math.random() * moves.length)];
+                } else {
+                    let bestScore = -Infinity;
+                    const pieceValues = { p: 10, n: 30, b: 32, r: 50, q: 90, k: 900 };
+
+                    moves.forEach(m => {
+                        let score = m.captured ? pieceValues[m.captured] * 2 : 0;
+                        if (m.flags.includes('p')) score += 80;
+                        score += Math.random() * 5;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            selectedMove = m;
+                        }
+                    });
+
+                    if (!selectedMove) selectedMove = moves[Math.floor(Math.random() * moves.length)];
+                }
+
+                this.isAIThinking = false;
+                this.executeMove(selectedMove);
+            }
+
+            updateUI() {
+                const turn = this.chess.turn();
+                const turnDot = document.getElementById('turn-indicator-dot');
+                const turnText = document.getElementById('turn-text');
+
+                if (turn === 'w') {
+                    turnDot.style.backgroundColor = '#fef3c7';
+                    turnText.textContent = "White's Turn";
+                } else {
+                    turnDot.style.backgroundColor = '#475569';
+                    turnText.textContent = "Black's Turn";
+                }
+
+                const historyContainer = document.getElementById('move-history');
+                const history = this.chess.history({ verbose: true });
+                historyContainer.innerHTML = '';
+
+                for (let i = 0; i < history.length; i += 2) {
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between py-1 border-b border-white/5 text-amber-200/80';
+                    const moveNum = Math.floor(i / 2) + 1;
+                    const whiteMove = history[i] ? history[i].san : '';
+                    const blackMove = history[i + 1] ? history[i + 1].san : '';
+                    row.innerHTML = `<span class="text-slate-500 w-8">${moveNum}.</span><span class="w-20">${whiteMove}</span><span class="w-20">${blackMove}</span>`;
+                    historyContainer.appendChild(row);
+                }
+                historyContainer.scrollTop = historyContainer.scrollHeight;
+            }
+
+            checkGameOver() {
+                if (this.chess.game_over()) {
+                    const modal = document.getElementById('gameover-modal');
+                    const title = document.getElementById('gameover-title');
+                    const body = document.getElementById('gameover-body');
+
+                    if (this.chess.in_checkmate()) {
+                        const winner = this.chess.turn() === 'w' ? 'Black Ebony' : 'White Ivory';
+                        title.textContent = "Checkmate!";
+                        body.textContent = `${winner} has triumphed in the Sanctum!`;
+                    } else if (this.chess.in_draw()) {
+                        title.textContent = "Stalemate";
+                        body.textContent = "The sanctum forces remain balanced in draw.";
+                    }
+
+                    modal.classList.remove('hidden');
+                }
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            window.game = new GothicChessGame();
+        });
+    </script>
+</body>
+</html>
